@@ -199,7 +199,7 @@ local processMessageContent = function(contact, msg)
         if type == "text" then
             element = createTextElement(value)
         elseif type == "atUin" then
-            local atType -- 1: @全体, 2: @个人
+            local atType -- 1: @全体成员, 2: @个人
             local uid
             if value == "0" then
                 atType = 1 -- @全体成员
