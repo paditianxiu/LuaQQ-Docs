@@ -47,7 +47,7 @@ export default defineConfig({
         ],
         footer: {
           message: 'Made with ❤️',
-          copyright: 'Copyright © 2025-present <a href="https://github.com/KuLiPai">KuLiPai</a>'
+          copyright: 'Copyright © 2025-present <a href="https://github.com/paditianxiu">paditianxiu</a>'
         }
       }
     },
