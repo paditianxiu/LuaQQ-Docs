@@ -17,7 +17,7 @@ export default defineConfig({
       themeConfig: {
         logo: '/logo.png',
         nav: [
-          { text: '下载', link: 'https://github.com/KuLiPai/LuaHook/releases/latest' }
+          { text: '下载', link: 'https://github.com/paditianxiu/LuaQQ-Docs/blob/main/docs/public/assets/script/QQ_Hook.lua' }
         ],
         sidebar: [
           {
@@ -42,7 +42,7 @@ export default defineConfig({
           },
         ],
         socialLinks: [
-          { icon: 'github', link: 'https://github.com/kulipai/luahook' },
+          { icon: 'github', link: 'https://github.com/paditianxiu/LuaQQ-Docs/blob/main/docs/public/assets/script/QQ_Hook.lua' },
           { icon: 'telegram', link: 'https://t.me/luaXposed' },
         ],
         footer: {

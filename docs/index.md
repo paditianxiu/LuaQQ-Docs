@@ -21,7 +21,7 @@ hero:
       link: /quickstart
     - theme: alt
       text: 在 GitHub 查看
-      link: https://github.com/kulipai/luahook
+      link: https://github.com/paditianxiu/LuaQQ-Docs/blob/main/docs/public/assets/script/QQ_Hook.lua
 
 features:
   - icon: 💻
