@@ -1,0 +1,165 @@
+:root {
+  --vp-button-brand-active-bg: #e2c37c;
+  --vp-button-brand-hover-bg: #e2c37c;
+  --vp-button-brand-bg: #e2c37c;
+  --vp-badge-tip-text: #e2c37c;
+  --vp-c-brand: #e2c37c;
+  --vp-c-brand-light: #f4d99d;
+  --vp-c-brand-lighter: #ffedb9;
+  --vp-c-brand-dark: #cfa65b;
+  --vp-c-brand-darker: #b89249;
+  --vp-c-brand-dimm: rgba(
+    226,
+    195,
+    124,
+    0.08
+  ); /* 使用新的主题色计算出来的透明度变体 (100, 108, 255 -> 226, 195, 124) */
+  /* 可选保留 --vp-c-bg，实际不再使用 */
+}
+
+body {
+  background: unset;
+  background-color: unset;
+  background-attachment: unset;
+}
+
+.VPHero {
+  position: relative;
+  overflow: hidden;
+  padding-bottom: 120px;
+}
+
+.VPHero::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(
+    circle at 50% 30%,
+    rgba(226, 195, 124, 0.15) 0%,
+    /* 修改背景渐变中的颜色 */ rgba(226, 195, 124, 0.05) 40%,
+    /* 修改背景渐变中的颜色 */ transparent 90%
+  );
+  pointer-events: none;
+  z-index: -1;
+}
+
+.VPHero .image-container {
+  position: relative;
+  width: 300px;
+  height: 300px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.VPHero .image-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  animation: float 3s ease-in-out infinite;
+}
+
+.VPHero .image-src {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(
+    0 0 20px rgba(255, 237, 185, 0.8)
+  ); /* 修改阴影颜色，使用一个亮色系作为参考 */
+  position: relative;
+  z-index: 2;
+}
+
+.VPHero .image-glow {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 280px;
+  height: 280px;
+  background: radial-gradient(
+    circle at center,
+    rgba(255, 237, 185, 0.3) 0%,
+    /* 修改发光效果的颜色 */ rgba(226, 195, 124, 0.2) 30%,
+    /* 修改发光效果的颜色 */ transparent 70%
+  );
+  filter: blur(20px);
+  z-index: 1;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) scale(0.8);
+    opacity: 0.5;
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.2);
+    opacity: 0.8;
+  }
+}
+
+.VPHero .name {
+  background: linear-gradient(120deg, #f4d99d, #cfa65b); /* 修改文本渐变颜色 */
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-size: 76px !important;
+  text-shadow: 0 0 30px rgba(255, 237, 185, 0.3); /* 修改文本阴影颜色 */
+}
+
+@media (max-width: 768px) {
+  .VPHero .name {
+    padding-top: 32px;
+    font-size: 42px !important;
+  }
+
+  .VPHero .image-container {
+    width: 120px;
+    height: 120px;
+  }
+
+  .VPHero .image-glow {
+    width: 180px;
+    height: 180px;
+  }
+
+  .VPHero {
+    padding-bottom: 80px;
+  }
+}
+
+.VPFooter .message,
+.VPFooter .copyright {
+  margin: 0;
+  line-height: 24px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--vp-c-text-2);
+}
+
+.VPFooter .copyright a {
+  color: var(--vp-c-text-1);
+  text-decoration: none;
+  transition: color 0.25s;
+}
+
+.VPFooter .copyright a:hover {
+  color: var(--vp-c-brand);
+}
