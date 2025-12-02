@@ -1,5 +1,26 @@
 ---@diagnostic disable: undefined-global
 
+---@diagnostic disable: undefined-global
+
+--[[
+作者：帕帝天秀
+TG：@paditianxiu
+参考文献：https://github.com/oneQAQone/QFun
+
+HTTP服务器功能说明：
+- 监听端口：localhost:8888（使用getLocalIpAddress(ctx)获取本机IP）
+
+API接口列表：
+- 获取QQ号：/getQQ
+- 发送消息：/sendMsg?toUin=QQ/群号&msg=消息内容&chatType=1/2
+- 发送文件: /sendFile?toUin=QQ/群号&filePath=文件路径&chatType=1/2
+- 撤回消息: /recallMsg?toUin=QQ/群号&msgIds=1,2,3&chatType=1/2
+- 拍一拍好友：/sendPai?toUin=QQ号&peerUin=QQ/群号&chatType=1/2
+- 获取好友列表：/getAllFriend
+- 获取群聊列表：/getGroupList
+
+]]
+
 imports "top.sacz.xphelper.dexkit.FieldFinder"
 imports "java.lang.reflect.Modifier"
 imports "top.sacz.xphelper.dexkit.bean.MethodInfo"
@@ -31,13 +52,7 @@ imports "java.lang.Runnable"
 imports "java.util.concurrent.atomic.AtomicBoolean"
 imports "java.lang.System"
 imports "java.net.URLDecoder"
-
-
---作者 帕帝天秀
---TG @paditianxiu
---参考文献 https://github.com/oneQAQone/QFun
-
---http://自己WIFI IP:8888/sendMsg?qq=群号/QQ号&msg=消息内容&type=1是私聊/2是群聊
+imports "java.util.List "
 
 local isInit = false
 local PORT = 8888
@@ -76,6 +91,7 @@ local function readHeaders(reader)
     return t
 end
 
+
 local function sendResponse(outStream, code, text, headers, body)
     log("Sending response: " .. code .. " " .. text)
     local bw = BufferedWriter(OutputStreamWriter(outStream))
@@ -97,11 +113,18 @@ local function sendResponse(outStream, code, text, headers, body)
     log("Response sent successfully")
 end
 
-
 local function urlDecode(str)
     return URLDecoder.decode(str, "UTF-8")
 end
 
+-- 定义路由处理器映射表
+local routeHandlers = {
+    GET = {},
+    POST = {},
+    -- 可以添加其他HTTP方法
+}
+
+-- 主处理函数
 local function handleClient(client)
     log("New client connected: " .. tostring(client))
 
@@ -140,68 +163,51 @@ local function handleClient(client)
         log("Headers count: " .. tostring(#headers))
 
         local out = client.getOutputStream()
-        local resp = ""
+        local responseTable = {}
 
-        if method == "GET" then
-            if pathWithoutQuery == "/ping" then
-                resp = '{"status":"ok","time":' .. System.currentTimeMillis() .. '}'
-                log("Handling ping request")
-            elseif pathWithoutQuery == "/sendMsg" then
-                local qq = getParams["qq"]
-                local type = getParams["type"]
-                local msg = getParams["msg"]
-                if qq and msg and type then
-                    local result = sendMsg(qq, msg, int(type))
-                    resp = '{"status":"' .. (result and "ok" or "error") .. '","result":' .. tostring(result) .. '}'
-                end
-            elseif pathWithoutQuery == "/getAllFriend" then
-                local result = getAllFriend()
-                resp = '{"status":"' .. (result and "ok" or "error") .. '","result":' .. tostring(result) .. '}'
-            elseif pathWithoutQuery == "/getGroupList" then
-                local result = getGroupList()
-                resp = '{"status":"' .. (result and "ok" or "error") .. '","result":' .. tostring(result) .. '}'
-            elseif pathWithoutQuery == "/sendPai" then
-                --toUin, peerUin, chatType
-                local toUin = getParams["toUin"]
-                local peerUin = getParams["peerUin"]
-                local chatType = int(getParams["chatType"])
-                if toUin and peerUin and chatType then
-                    local result = sendPai(String(toUin), String(peerUin), chatType)
-                    resp = '{"status":"' .. (result and "ok" or "error") .. '","result":' .. tostring(result) .. '}'
-                end
+        -- 根据HTTP方法获取对应的路由处理器
+        local methodHandlers = routeHandlers[string.upper(method or "GET")] or {}
+
+        if methodHandlers then
+            -- 查找匹配的路由处理器
+            local handler = methodHandlers[pathWithoutQuery] or methodHandlers["*"]
+
+            if handler then
+                -- 调用路由处理器
+                responseTable = handler(getParams, headers, pathWithoutQuery, method)
+                log("Handling request for path: " .. pathWithoutQuery)
             else
-                local paramsJson = "{"
-                local first = true
-                for key, value in pairs(getParams) do
-                    if not first then
-                        paramsJson = paramsJson .. ","
-                    end
-                    paramsJson = paramsJson .. '"' .. key .. '":"' .. value .. '"'
-                    first = false
-                end
-                paramsJson = paramsJson .. "}"
-
-                resp = '{"path":"' ..
-                    pathWithoutQuery ..
-                    '","method":"' ..
-                    method .. '","time":' .. System.currentTimeMillis() .. ',"params":' .. paramsJson .. '}'
-                log("Handling generic GET request with parameters")
+                -- 没有找到处理器，返回404
+                responseTable = {
+                    status = "error",
+                    message = "Path not found: " .. pathWithoutQuery,
+                    time = System.currentTimeMillis()
+                }
+                log("No handler found for path: " .. pathWithoutQuery)
             end
-            resp = resp:gsub("nil", "null")
-            sendResponse(out, 200, "OK", {
-                ["Content-Type"] = "application/json; charset=utf-8",
-                ["Content-Length"] = tostring(#resp),
-                ["Connection"] = "close"
-            }, resp)
         else
-            resp = '{"error":"method not allowed"}'
+            -- 方法不允许
+            responseTable = {
+                error = "method not allowed"
+            }
+            local resp = json.encode(responseTable)
             log("Method not allowed: " .. tostring(method))
             sendResponse(out, 405, "Method Not Allowed", {
                 ["Content-Type"] = "application/json; charset=utf-8",
                 ["Content-Length"] = tostring(#resp),
                 ["Connection"] = "close"
             }, resp)
+            client.close()
+            return
         end
+
+        -- 编码JSON响应
+        local resp = json.encode(responseTable)
+        sendResponse(out, 200, "OK", {
+            ["Content-Type"] = "application/json; charset=utf-8",
+            ["Content-Length"] = tostring(#resp),
+            ["Connection"] = "close"
+        }, resp)
 
         log("Request handling completed, closing client connection")
         client.close()
@@ -215,6 +221,19 @@ local function handleClient(client)
         end)
     end
 end
+
+
+local function Route(method, path, handler)
+    method = string.upper(method)
+    if not routeHandlers[method] then
+        routeHandlers[method] = {}
+    end
+    routeHandlers[method][path] = handler
+    log("Registered route: " .. method .. " " .. path)
+end
+
+
+
 
 local function startAcceptLoop()
     return Runnable {
@@ -477,7 +496,7 @@ hook {
         local getUidFromUin = function(uin)
             local RelationNTUinAndUidApiImpl = makeDefaultObject(findClass(
                 "com.tencent.relation.common.api.impl.RelationNTUinAndUidApiImpl"))
-            local result = invoke(RelationNTUinAndUidApiImpl, "getUidFromUin", uin)
+            local result = invoke(RelationNTUinAndUidApiImpl, "getUidFromUin", String(uin))
             return result
         end
 
@@ -495,11 +514,11 @@ hook {
                 "")
         end
 
-        _G["sendMsg"] = function(peerUin, msg, type)
+        _G["sendMsg"]              = function(peerUin, msg, type)
             return sendMsgBase2(makeContact(String(peerUin), type), msg)
         end
 
-        _G["sendPai"] = function(toUin, peerUin, chatType)
+        _G["sendPai"]              = function(toUin, peerUin, chatType)
             local sSendPai
 
             sSendPai = MethodInfo() {
@@ -535,7 +554,7 @@ hook {
             return ok
         end
 
-        _G["getAllFriend"] = function()
+        _G["getAllFriend"]         = function()
             local friendList = {}
             local FriendsInfoServiceImpl = makeDefaultObject(findClass(
                 "com.tencent.qqnt.ntrelation.friendsinfo.api.impl.FriendsInfoServiceImpl"))
@@ -553,10 +572,10 @@ hook {
                     remark = remark
                 }
             end
-            return json.encode(friendList)
+            return friendList
         end
 
-        _G["getGroupList"] = function()
+        _G["getGroupList"]         = function()
             local groupList = {}
             local troopListRepoApiImpl = makeDefaultObject(findClass(
                 "com.tencent.qqnt.troop.impl.TroopListRepoApiImpl"))
@@ -587,157 +606,374 @@ hook {
                 table.insert(groupList, troopMap)
             end
 
-            return json.encode(groupList)
+            return groupList
         end
 
         _G["getCurrentAccountUin"] = function()
             return invoke(sQQAppInterface, "getCurrentAccountUin")
         end
 
+        local createFileElement    = function(path)
+            local sMsgUtilApiImpl = makeDefaultObject(findClass("com.tencent.qqnt.msg.api.impl.MsgUtilApiImpl"))
+            local sCreateFileElement = MethodInfo() {
+                declaredClass = findClass("com.tencent.qqnt.msg.api.impl.MsgUtilApiImpl"),
+                methodName = "createFileElement",
+                parameters = { String },
+            }.generate().firstOrNull()
 
-        hook {
-            class = "android.app.Activity",
-            classloader = loader,
-            method = "onKeyDown",
-            params = { "int", "android.view.KeyEvent" },
-            before = function(it)
-            end,
-            after = function(it)
-                local context = it.thisObject
-                local keyCode = it.args[0]
-                if keyCode == 24 then
+            return sCreateFileElement.invoke(sMsgUtilApiImpl, { path })
+        end
 
-                end
+        _G["sendFile"]             = function(peerUin, path, type)
+            local contact = makeContact(String(peerUin), type)
+            local msgElements = ArrayList.new()
+            msgElements.add(createFileElement(path))
+            sendMsgBase(contact, msgElements)
+        end
+
+        local recallMsgBase2       = function(contact, msgIds)
+            local sRecallMsg
+            sRecallMsg = MethodInfo() {
+                declaredClass = findClass("com.tencent.qqnt.kernel.nativeinterface.IKernelMsgService$CppProxy"),
+                methodName = "recallMsg",
+            }.generate().firstOrNull()
+            sRecallMsg.invoke(getKernelMsgservice(), contact, msgIds, nil)
+        end
+        local recallMsgBase        = function(contact, msgId)
+            local msgIds = ArrayList.new()
+            for _, value in ipairs(msgId) do
+                msgIds.add(value)
             end
-        }
+            recallMsgBase2(contact, msgIds)
+        end
 
-        hook {
-            class = "android.app.Activity",
-            classLoader = loader,
-            method = "onCreate",
-            params = { "android.os.Bundle" },
-            after = function(it)
-                local ctx = it.thisObject
-                running.set(true)
 
-                local name = ctx.getClass().getName()
-                if isInit then
-                    return
+        _G["recallMsg"] = function(type, peerUin, msgIds)
+            recallMsgBase(makeContact(peerUin, int(type)), msgIds);
+        end
+
+
+        _G["registerRoutes"] = function()
+            Route("GET", "*", function(getParams, headers, pathWithoutQuery, method)
+                return {
+                    path = pathWithoutQuery,
+                    method = method,
+                    time = System.currentTimeMillis(),
+                    params = getParams
+                }
+            end)
+
+            Route("GET", "/ping", function()
+                return {
+                    status = "ok",
+                    time = System.currentTimeMillis()
+                }
+            end)
+
+            Route("GET", "/getQQ", function()
+                local result = getCurrentAccountUin()
+                return {
+                    status = result and "ok" or "error",
+                    result = result
+                }
+            end)
+
+            Route("GET", "/sendMsg", function(getParams)
+                local toUin = getParams["toUin"]
+                local chatType = getParams["chatType"]
+                local msg = getParams["msg"]
+                if toUin and msg and chatType then
+                    local result = sendMsg(toUin, msg, int(chatType))
+                    return {
+                        status = result and "ok" or "error",
+                        result = result
+                    }
                 end
+                return {
+                    status = "error",
+                    message = "Missing parameters"
+                }
+            end)
 
-                if name ~= "com.tencent.mobileqq.activity.SplashActivity" then
-                    return
-                else
-                    isInit = true
+            Route("GET", "/getAllFriend", function()
+                local result = getAllFriend()
+                return {
+                    status = result and "ok" or "error",
+                    result = result
+                }
+            end)
+
+            Route("GET", "/getGroupList", function()
+                local result = getGroupList()
+                return {
+                    status = result and "ok" or "error",
+                    result = result
+                }
+            end)
+
+            Route("GET", "/sendPai", function(getParams)
+                local toUin = getParams["toUin"]
+                local peerUin = getParams["peerUin"]
+                local chatType = int(getParams["chatType"])
+                if toUin and peerUin and chatType then
+                    local result = sendPai(String(toUin), String(peerUin), chatType)
+                    return {
+                        status = result and "ok" or "error",
+                        result = result
+                    }
                 end
+                return {
+                    status = "error",
+                    message = "Missing parameters"
+                }
+            end)
 
+            Route("GET", "/sendFile", function(getParams)
+                local toUin = getParams["toUin"]
+                local chatType = getParams["chatType"]
+                local filePath = getParams["filePath"]
+                if toUin and filePath and chatType then
+                    local result = sendFile(toUin, filePath, int(chatType))
+                    return {
+                        status = result and "ok" or "error",
+                        result = result
 
-                Thread(Runnable {
-                    run = function()
-                        log("Starting server thread...")
-                        local ok, err = pcall(function()
-                            log("Creating ServerSocket on port " .. PORT)
+                    }
+                end
+                return {
+                    status = "error",
+                    message = "Missing parameters"
+                }
+            end)
 
-                            -- 尝试多种方式创建 ServerSocket
-                            local ss
-                            local success = false
-
-                            -- 方法1: 直接创建
-                            local ok1, err1 = pcall(function()
-                                ss = ServerSocket(PORT, BACKLOG)
-                                log("ServerSocket created with method 1")
-                                success = true
-                            end)
-
-                            -- 方法2: 绑定到所有地址
-                            if not success then
-                                log("Method 1 failed, trying method 2...")
-                                local ok2, err2 = pcall(function()
-                                    ss = ServerSocket()
-                                    ss.setReuseAddress(true)
-                                    local InetSocketAddress = findClass("java.net.InetSocketAddress")
-                                    ss.bind(IInetSocketAddress(PORT), BACKLOG)
-                                    log("ServerSocket created with method 2")
-                                    success = true
-                                end)
-                                if not success then
-                                    log("Method 2 failed: " .. tostring(err2))
-                                end
-                            end
-
-                            -- 方法3: 绑定到本地地址
-                            if not success then
-                                log("Trying method 3...")
-                                local ok3, err3 = pcall(function()
-                                    ss = ServerSocket()
-                                    ss.setReuseAddress(true)
-                                    local localAddr = InetAddress.getByName("0.0.0.0")
-                                    local InetSocketAddress = findClass("java.net.InetSocketAddress")
-                                    ss.bind(InetSocketAddress(localAddr, PORT), BACKLOG)
-                                    log("ServerSocket created with method 3")
-                                    success = true
-                                end)
-                                if not success then
-                                    log("Method 3 failed: " .. tostring(err3))
-                                end
-                            end
-
-                            if not success then
-                                error("All ServerSocket creation methods failed")
-                            end
-
-                            server = ss
-                            ctx.__server = ss
-                            log("ServerSocket created successfully on port " .. PORT)
-
-                            -- 设置SO_TIMEOUT为5秒
-                            ss.setSoTimeout(SOCKET_TIMEOUT)
-                            log("Socket timeout set to " .. SOCKET_TIMEOUT .. "ms")
-
-                            -- 开启 Accept 循环
-                            Thread(startAcceptLoop()).start()
-                            log("Server started successfully on port " .. PORT)
-
-                            -- 测试连接信息
-                            log("Server is ready for connections")
-                            log("Test with: curl http://0.0.0.0:" .. PORT .. "/ping")
-                            log("Or: curl http://0.0.0.0:" .. PORT .. "/test")
-                        end)
-
-                        if not ok then
-                            log("Server start error: " .. tostring(err))
-                            log("Please check:")
-                            log("1. App INTERNET permission")
-                            log("2. Port " .. PORT .. " availability")
-                            log("3. Try different port if needed")
-                        end
+            Route("GET", "/recallMsg", function(getParams)
+                local ids = {}
+                local toUin = getParams["toUin"]
+                local chatType = getParams["chatType"]
+                local msgIds = getParams["msgIds"]
+                if toUin and msgIds and chatType then
+                    for id in msgIds:gmatch("[^,]+") do
+                        table.insert(ids, Long.valueOf(id))
                     end
-                }).start()
-            end
-        }
-
-        hook {
-            class = "android.app.Activity",
-            classLoader = loader,
-            method = "onDestroy",
-            params = {},
-            before = function(it)
-                if name ~= "com.tencent.mm.ui.LauncherUI" then
-                    return
+                    print("ids: ", dump(ids))
+                    local result = recallMsg(int(chatType), toUin, ids)
+                    return {
+                        status = result and "ok" or "error",
+                        result = result
+                    }
                 end
-                log("Activity destroying, stopping server...")
-                running.set(false)
-                pcall(function()
-                    if server then
-                        log("Closing server socket...")
-                        server.close()
-                        server = nil
-                        log("Server socket closed")
-                    end
-                end)
-                it.thisObject.__server = nil
-                log("Server stopped completely")
-            end
-        }
+                return {
+                    status = "error",
+                    message = "Missing parameters"
+                }
+            end)
+        end
+
+
+        hookOnKeyDown(loader)
+        hookOnCreate(loader)
+        hookOnDestroy(loader)
     end
 }
+
+
+_G["hookOnKeyDown"] = function(loader)
+    hook {
+        class = "android.app.Activity",
+        classloader = loader,
+        method = "onKeyDown",
+        params = { "int", "android.view.KeyEvent" },
+        before = function(it)
+        end,
+        after = function(it)
+            local context = it.thisObject
+            local keyCode = it.args[0]
+            if keyCode == 24 then
+            end
+        end
+    }
+end
+
+
+_G["hookOnCreate"] = function(loader)
+    hook {
+        class = "android.app.Activity",
+        classLoader = loader,
+        method = "onCreate",
+        params = { "android.os.Bundle" },
+        after = function(it)
+            local ctx = it.thisObject
+            running.set(true)
+
+            local name = ctx.getClass().getName()
+            if isInit then
+                return
+            end
+
+            if name ~= "com.tencent.mobileqq.activity.SplashActivity" then
+                return
+            else
+                isInit = true
+            end
+
+
+            Thread(Runnable {
+                run = function()
+                    log("Starting server thread...")
+                    local ok, err = pcall(function()
+                        log("Creating ServerSocket on port " .. PORT)
+
+                        -- 尝试多种方式创建 ServerSocket
+                        local ss
+                        local success = false
+
+                        -- 方法1: 直接创建
+                        local ok1, err1 = pcall(function()
+                            ss = ServerSocket(PORT, BACKLOG)
+                            log("ServerSocket created with method 1")
+                            success = true
+                        end)
+
+                        -- 方法2: 绑定到所有地址
+                        if not success then
+                            log("Method 1 failed, trying method 2...")
+                            local ok2, err2 = pcall(function()
+                                ss = ServerSocket()
+                                ss.setReuseAddress(true)
+                                local InetSocketAddress = findClass("java.net.InetSocketAddress")
+                                ss.bind(IInetSocketAddress(PORT), BACKLOG)
+                                log("ServerSocket created with method 2")
+                                success = true
+                            end)
+                            if not success then
+                                log("Method 2 failed: " .. tostring(err2))
+                            end
+                        end
+
+                        -- 方法3: 绑定到本地地址
+                        if not success then
+                            log("Trying method 3...")
+                            local ok3, err3 = pcall(function()
+                                ss = ServerSocket()
+                                ss.setReuseAddress(true)
+                                local localAddr = InetAddress.getByName("0.0.0.0")
+                                local InetSocketAddress = findClass("java.net.InetSocketAddress")
+                                ss.bind(InetSocketAddress(localAddr, PORT), BACKLOG)
+                                log("ServerSocket created with method 3")
+                                success = true
+                            end)
+                            if not success then
+                                log("Method 3 failed: " .. tostring(err3))
+                            end
+                        end
+
+                        if not success then
+                            error("All ServerSocket creation methods failed")
+                        end
+
+
+                        server = ss
+                        ctx.__server = ss
+                        log("ServerSocket created successfully on port " .. PORT)
+
+                        -- 设置SO_TIMEOUT为5秒
+                        ss.setSoTimeout(SOCKET_TIMEOUT)
+                        log("Socket timeout set to " .. SOCKET_TIMEOUT .. "ms")
+
+                        -- 开启 Accept 循环
+                        Thread(startAcceptLoop()).start()
+                        log("Server started successfully on port " .. PORT)
+
+                        -- 测试连接信息
+                        log("Server is ready for connections")
+                        log("Test with: curl http://" .. getLocalIpAddress(ctx) .. ":" .. PORT .. "/ping")
+
+                        registerRoutes()
+                    end)
+
+                    if not ok then
+                        log("Server start error: " .. tostring(err))
+                        log("Please check:")
+                        log("1. App INTERNET permission")
+                        log("2. Port " .. PORT .. " availability")
+                        log("3. Try different port if needed")
+                    end
+                end
+            }).start()
+        end
+    }
+end
+
+_G["hookOnDestroy"] = function(loader)
+    hook {
+        class = "android.app.Activity",
+        classLoader = loader,
+        method = "onDestroy",
+        params = {},
+        before = function(it)
+            if name ~= "com.tencent.mm.ui.LauncherUI" then
+                return
+            end
+            log("Activity destroying, stopping server...")
+            running.set(false)
+            pcall(function()
+                if server then
+                    log("Closing server socket...")
+                    server.close()
+                    server = nil
+                    log("Server socket closed")
+                end
+            end)
+            it.thisObject.__server = nil
+            log("Server stopped completely")
+        end
+    }
+end
+
+-- 获取局域网IP地址的函数
+_G["getLocalIpAddress"] = function(context)
+    -- 获取 WifiManager 服务
+    local wifiManager = context.getApplicationContext().getSystemService("wifi")
+
+    -- 如果获取不到 WifiManager 或 Wi-Fi 状态不可用
+    if wifiManager == nil or not invoke(wifiManager, "isWifiEnabled") then
+        log("WiFi is not enabled or WifiManager is null")
+        return nil
+    end
+
+    -- 检查连接信息是否有效
+    local wifiInfo = invoke(wifiManager, "getConnectionInfo")
+    if wifiInfo == nil or invoke(wifiInfo, "getIpAddress") == 0 then
+        log("WiFi connection info is invalid or IP address is 0")
+        return nil
+    end
+
+    local ok, ipAddress = pcall(function()
+        local ipInt = invoke(wifiInfo, "getIpAddress")
+        log("Raw IP address (int): " .. tostring(ipInt))
+
+        -- 将整数IP地址转换为字节数组
+        local ByteBuffer = findClass("java.nio.ByteBuffer")
+        local ByteOrder = findClass("java.nio.ByteOrder")
+
+        local byteBuffer = ByteBuffer.allocate(4)
+        byteBuffer.order(ByteOrder.LITTLE_ENDIAN)
+        byteBuffer.putInt(ipInt)
+        local bytes = byteBuffer.array()
+
+        -- 通过字节数组获取InetAddress
+        local InetAddress = findClass("java.net.InetAddress")
+        local inetAddress = InetAddress.getByAddress(bytes)
+        local ipStr = invoke(inetAddress, "getHostAddress")
+
+        log("Converted IP address: " .. ipStr)
+        return ipStr
+    end)
+
+    if not ok then
+        log("Error converting IP address: " .. tostring(ipAddress))
+        return nil
+    end
+
+    return ipAddress
+end
