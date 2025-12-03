@@ -28,8 +28,10 @@ export default defineConfig({
           {
             text: '接口文档',
             items: [
+              { text: '拍一拍', link: '/sendPai' },
               { text: '发送文字', link: '/sendTextMsg' },
-              { text: '发送拍一拍', link: '/sendPai' },
+              { text: '发送图片', link: '/sendPic' },
+              { text: '发送视频', link: '/sendVideo' },
               { text: '发送文件', link: '/sendFile' },
               { text: '撤回消息', link: '/recallMsg' },
               { text: '获取好友/群聊列表', link: '/getAllFriend' },

@@ -14,6 +14,8 @@ API接口列表：
 - 获取QQ号：/getQQ
 - 发送消息：/sendMsg?toUin=QQ/群号&msg=消息内容&chatType=1/2
 - 发送文件: /sendFile?toUin=QQ/群号&filePath=文件路径&chatType=1/2
+- 发送视频: /sendVideo?toUin=QQ/群号&filePath=文件路径&chatType=1/2
+- 发送图片: /sendPic?toUin=QQ/群号&filePath=文件路径&chatType=1/2
 - 撤回消息: /recallMsg?toUin=QQ/群号&msgIds=1,2,3&chatType=1/2
 - 拍一拍好友：/sendPai?toUin=QQ号&peerUin=QQ/群号&chatType=1/2
 - 获取好友列表：/getAllFriend
@@ -648,8 +650,45 @@ hook {
         end
 
 
-        _G["recallMsg"] = function(type, peerUin, msgIds)
+        _G["recallMsg"]          = function(type, peerUin, msgIds)
             recallMsgBase(makeContact(peerUin, int(type)), msgIds);
+        end
+
+        local createVideoElement = function(path)
+            local sMsgUtilApiImpl = makeDefaultObject(findClass("com.tencent.qqnt.msg.api.impl.MsgUtilApiImpl"))
+            local sCreateVideoElement = MethodInfo() {
+                declaredClass = findClass("com.tencent.qqnt.msg.api.impl.MsgUtilApiImpl"),
+                methodName = "createVideoElement",
+                parameters = { String },
+            }.generate().firstOrNull()
+
+            return sCreateVideoElement.invoke(sMsgUtilApiImpl, { path })
+        end
+
+        _G["sendVideo"]          = function(peerUin, path, type)
+            local contact = makeContact(String(peerUin), type)
+            local msgElements = ArrayList.new()
+            msgElements.add(createVideoElement(path))
+            sendMsgBase(contact, msgElements)
+        end
+
+        local createPicElement   = function(path)
+            local sMsgUtilApiImpl = makeDefaultObject(findClass("com.tencent.qqnt.msg.api.impl.MsgUtilApiImpl"))
+            local sCreatePicElement = MethodInfo() {
+                declaredClass = findClass("com.tencent.qqnt.msg.api.impl.MsgUtilApiImpl"),
+                methodName = "createPicElement",
+                parameters = { String, Boolean.TYPE, Integer.TYPE },
+            }.generate().firstOrNull()
+            log("createPicElement: " .. tostring(sCreatePicElement) .. " path: " .. tostring(path) .. " true 0")
+            return sCreatePicElement.invoke(sMsgUtilApiImpl, String(path), true, int(0))
+        end
+
+
+        _G["sendPic"] = function(peerUin, path, type)
+            local contact = makeContact(String(peerUin), type)
+            local msgElements = ArrayList.new()
+            msgElements.add(createPicElement(path))
+            sendMsgBase(contact, msgElements)
         end
 
 
@@ -735,6 +774,43 @@ hook {
                 if toUin and filePath and chatType then
                     local result = sendFile(toUin, filePath, int(chatType))
                     return {
+                        status = result and "ok" or "error",
+                        result = result
+
+                    }
+                end
+                return {
+                    status = "error",
+                    message = "Missing parameters"
+                }
+            end)
+
+
+            Route("GET", "/sendVideo", function(getParams)
+                local toUin = getParams["toUin"]
+                local chatType = getParams["chatType"]
+                local filePath = getParams["filePath"]
+                if toUin and filePath and chatType then
+                    local result = sendVideo(toUin, filePath, int(chatType))
+                    return {
+                        status = result and "ok" or "error",
+                        result = result
+                    }
+                end
+                return {
+                    status = "error",
+                    message = "Missing parameters"
+                }
+            end)
+
+            Route("GET", "/sendPic", function(getParams)
+                local toUin = getParams["toUin"]
+                local chatType = getParams["chatType"]
+                local filePath = getParams["filePath"]
+                if toUin and filePath and chatType then
+                    local result = sendPic(toUin, filePath, int(chatType))
+                    return {
+
                         status = result and "ok" or "error",
                         result = result
 
