@@ -17,7 +17,7 @@ export default defineConfig({
       themeConfig: {
         logo: '/logo.png',
         nav: [
-          { text: '下载', link: 'https://github.com/paditianxiu/LuaQQ-Docs/blob/main/docs/public/assets/script/QQ_Hook.lua' }
+          { text: '下载', link: 'https://github.com/paditianxiu/LuaQQ-Docs/blob/main/docs/public/assets/script/LuaQQ.lua' }
         ],
         sidebar: [
           {
@@ -45,7 +45,7 @@ export default defineConfig({
           },
         ],
         socialLinks: [
-          { icon: 'github', link: 'https://github.com/paditianxiu/LuaQQ-Docs/blob/main/docs/public/assets/script/QQ_Hook.lua' },
+          { icon: 'github', link: 'https://github.com/paditianxiu/LuaQQ-Docs/blob/main/docs/public/assets/script/LuaQQ.lua' },
           { icon: 'telegram', link: 'https://t.me/luaXposed' },
         ],
         footer: {
